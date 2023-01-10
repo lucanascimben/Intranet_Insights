@@ -9,12 +9,14 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 ## Corso di Fondamenti di Scienza dei Dati e Laboratorio
 ### AA 2021 - 2022
-
+\
+\
 
 ## Introduzione
 
 L'obiettivo del progetto è di analizzare i dati relativi alla navigazione delle pagine web di una intranet aziendale.
-
+\
+\
 
 ## Specifiche del dominio
 
@@ -87,8 +89,8 @@ L'obiettivo è di indagare il _data set_ relativamente ai seguenti aspetti:
 \
 * **Analisi dell'utilizzo della rubrica**
   + Quali sono le parole più ricercate?
-
-
+\
+\
 
 ### Setup dell'ambiente di sviluppo
 
@@ -114,7 +116,8 @@ library(lubridate)
 library(stringr) 
 library(ggplot2)
 ```
-
+\
+\
 
 ### Importazione dati da sorgente ODBC
 
@@ -123,7 +126,7 @@ L'accesso viene fatto tramite driver ODBC e dati vengono salvati su file csv per
 (Il codice è commentato per evitare l'esecuzione in ambiente extra aziendale)
 
 ```{r}
-# webdb = odbcConnect("webdb64", uid="webdb", pwd="webdb")
+# webdb = odbcConnect("webdb64", uid="*****", pwd="*****")
 # 
 # # I dati degli utenti vengono estratti escludendo dati di sicurezza (hash delle password)
 # users = sqlQuery (webdb, "select userid, id_sede, abilitato from home_users;")
@@ -143,9 +146,11 @@ Caricamento del data set da csv (per utilizzo extra aziendale, o con DB inaccess
 users = read.csv("users.csv")
 richieste = read.csv("richieste.csv")
 ```
-
+\
+\
 
 ### Sistemazione della tabella delle richieste
+\
 
 **Data e orario** della richiesta sono salvate in formato *Unix Timestamp* (tempo da Unix Epoch, in secondi).\
 Si trasforma il campo **ux_time** in **oggetto dataora**, rimuovendo il campo originale.
@@ -155,8 +160,8 @@ richieste = richieste %>%
   mutate (dataora = as_datetime(ux_time)) %>%
   select (-ux_time)
 ```
-
 \
+
 Il campo **req_method** identifica il metodo utilizzato per la  HTTP-request.\
 Per come è implementata la rilevazione, dovrebbero esserci solo richieste di tipo **GET**
 
@@ -176,6 +181,7 @@ richieste = richieste %>%
   select (-req_method)
 ```
 \
+
 Il codice per la registrazione delle richieste è stato implementato nel corso del mese di aprile 2021, quindi il primo mese completo di rilevazione è **maggio 2021**.\
 Si procede quindi a filtrare i dati del periodo **dal 01.05.2021 al 31.12.2022**, ultimo mese completo disponibile al momento dell'analisi.\
 Vengono escluse anche le pagine richieste dagli host aventi IP address 10.22.6.143 e 10.29.5.172, in quanto corrispondeno a postazioni di sviluppo, test e security audit, e che quindi generano numerose richieste non significative.\
@@ -185,12 +191,14 @@ richieste = richieste %>%
   filter (dataora >= "2021-05-01", dataora<='2022-12-31', ipaddress != "10.22.6.143", ipaddress != "10.29.5.172")
 ```
 \
-Risulterà utile distinguere le richieste provenienti dalla sede di Udine da quelle provenienti dalla sede di Pordenone.\
-Per fare questo si sfrutta il fatto che le due sedi utilizzano due subnet diverse:
-* 10.29.x.x identifica il traffico proveniente dalla sede di Udine
-* 10.22.x.x identifica il traffico provenientedella sede di Pordenone)
-Le richieste provenienti da indirizzi IP non appartenenti a queste subnet si riferiscono a client operanti al di fuori di queste due sedi (tipicamente client da VPN), e non sono quindi riconducibili a nessina delle due sedi.
 
+Risulterà utile distinguere le richieste provenienti dalla sede di Udine da quelle provenienti dalla sede di Pordenone.\
+Per fare questo si sfrutta il fatto che le due sedi utilizzano due _subnet_ diverse:
+
+* 10.29.x.x identifica il traffico proveniente dalla sede di Udine
+* 10.22.x.x identifica il traffico proveniente dalla sede di Pordenone
+
+Le richieste provenienti da indirizzi IP non appartenenti a queste subnet si riferiscono a client operanti al di fuori di queste due sedi (tipicamente client da VPN), e non sono quindi riconducibili a nessina delle due sedi.
 
 ```{r}
 richieste = richieste %>%
@@ -199,11 +207,31 @@ richieste = richieste %>%
     str_detect(ipaddress,"10.22.") ~ "PN",
     TRUE ~ "Other"))
 ```
-
+\
+\
 
 ### Analisi delle richieste in funzione della sede
 
-  **+ _Come sono distribite le richieste per ciascuna sede?_**
+**Numero utenti per sede**
+
+Per valutare correttamente la portata del numero di richieste proveniente dalle sedi, si procede preliminarmente alla valutazione della distribuzione degli utenti per ciascuna sede. (Nel tabella estratta da databse di riferimento la sede di PN è identificata con id_sede = 1, la sede di Udine è identificata con id_sede = 2)
+
+```{r}
+users = users %>% 
+  filter (abilitato == 1) %>%
+  mutate (sede = case_when(
+    id_sede==2 ~ "UD", 
+    id_sede==1 ~ "PN"))
+utenti_per_sede = users %>%
+  group_by(sede) %>%
+  summarise(n=n()) %>%
+  mutate (distribuzione = "Utenti", perc = n/sum(n))
+utenti_per_sede
+```
+
+**Come sono distribuite le richieste per ciascuna sede?**
+
+Una prima analisi mira a capire come sono distribuite le richieste HTTP rispetto alla sede di provenienza
 
 ```{r}
 richieste_per_sede = richieste %>% 
@@ -214,34 +242,13 @@ richieste_per_sede = richieste %>%
 richieste_per_sede
 ```
 
-Le richieste provenienti da subnet diverse da quelle delle sedi sono trascurabili e non verranno ulteriormente indagate.
+Le richieste provenienti da subnet diverse da quelle delle sedi di PN e UD sono trascurabili e non verranno ulteriormente indagate.
 ```{r}
 richieste = richieste %>% filter (sede != "Other")
+richieste_per_sede = richieste_per_sede %>% filter (sede != "Other")
 ```
 
-
-**Numero utenti per sede**
-
-Per valutare correttamente la portata del numero di richieste proveniento dalle sedi, si procede con la verifica della distribuzione degli utenti per sede. (Nel database di riferimento la sede di PN è identificata con id_sede = 1, la sede di Udine è identificata con id_sede = 2)
-
-```{r}
-
-users = users %>% 
-  filter (abilitato == 1) %>%
-  mutate (sede = case_when(
-    id_sede==2 ~ "UD", 
-    id_sede==1 ~ "PN"))
-
-utenti_per_sede = users %>%
-  group_by(sede) %>%
-  summarise(n=n()) %>%
-  mutate (distribuzione = "Utenti", perc = n/sum(n))
-
-utenti_per_sede
-```
-
-**Come sono distribuite le richieste per ciascuna sede?**\
-
+Si visualizza la distribuzione delle richieste confrontate con la distribuzione degli utenti, per sede
 ```{r}
 glob = rbind(utenti_per_sede, richieste_per_sede)
 
@@ -250,34 +257,40 @@ ggplot(glob, aes(x=sede, y=perc, fill=distribuzione)) +
     labs(title="Distribuzione utenti e richieste, per sede", x="Sede", y = "distribuzione")
     
 ```
-Il boxplot evidenzia che la sede di Udine è ancora in una fase iniziale di adozione dello strumento, con notevoli margini di crescita. Occorre infatti considerare che la sede di Udine impiega circa due terzi dei dipendenti
+Il grafico a barre evidenzia che dalla sede di Udine vengono generate ancora relativamente poche richieste rispetto al numero degli utenti della sede. Questo indica che la sede di Udine è ancora in una fase iniziale di adozione dello strumento, con notevole potenziale di crescita.\
 
 
-  
-  
-  
-  + _Come è evoluto nel tempo il numero di richieste per ciascuna sede?_
+**Come è evoluto nel tempo il numero di richieste per ciascuna sede?**
+
+Per comprendere con quale velocità le sedi stanno adottando lo strumento, si procede con una analisi temporale sfruttando la serie storica disponibile (maggio 2021 - dicembre 2022).
+
+Si raggruppano quindi le richieste per sede e per mese, visualizzando quindi il dato in un boxplot
+
+```{r message=FALSE, warning=FALSE}
+mensili = richieste %>%
+  group_by(mese = floor_date(dataora, unit = "month"), sede) %>%
+  summarise(n=n())
+```
+
+```{r}
+ggplot (mensili, aes(sede, n, color=sede)) +
+  geom_boxplot() +
+  labs(title="Numero mensile di pagine richieste, per sede", x="Sede", y = "# richieste")
+```
+Il boxplot evidenzia che l'andamento mensile delle richieste 
+
+
   + _Com'è l'andamento intraday delle richieste_
     
 **Come è evoluto nel tempo l'utilizzo della intranet?**\
 
 Richieste per mese / sede
 
-```{r}
-mensili = richieste %>%
-  group_by(mese = floor_date(dataora, unit = "month"), sede) %>%
-  summarise(n=n())
 
-```
 
 Distribuzione delle richieste mensili, per sede
 
-```{r}
-ggplot (mensili, aes(sede, n, color=sede)) +
-  geom_boxplot() +
-  labs(title="Numero mensile di pagine richieste, per sede", x="Sede", y = "# richieste")
 
-```
 
 **Andamento temporale**
 
