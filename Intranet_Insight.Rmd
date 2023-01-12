@@ -45,7 +45,7 @@ Il primo step di questo processo ha comportato un _refactoring_ della piattaform
 ### Origine e descrizione del _dataset_
 
 Contestualmente alle operazione di _refactoring_, è stata inserita una porzione di codice per registrare nel DataBase i dati di navigazione degli utenti.
-Nello specifico, per ogni pagina richiesta al server vengono registrate le seguenti informazioni nella tabella *home_stats* del database:
+Nello specifico, per ogni pagina richiesta al server vengono registrate le seguenti informazioni nella tabella *home_stats* del database, che viene importata _as-is_ per la successiva elaborazione:
 
 * *id* - Identificativo univoco del record
 * *session_id* - Session ID della [sessione PHP](https://www.php.net/manual/en/book.session.php)
@@ -118,12 +118,10 @@ library(ggplot2)
 ```
 \
 \
-
 ### Importazione dati da sorgente ODBC
 
-I dati sono estratti dal DB MS SQL Server aziendale.
-L'accesso viene fatto tramite driver ODBC e dati vengono salvati su file csv per il successivo riutilizzo in ambiente extra-aziendale.
-(Il codice è commentato per evitare l'esecuzione in ambiente extra aziendale)
+I dati sono estratti dal DB Microsoft SQL Server aziendale.
+L'accesso viene fatto tramite driver ODBC e dati vengono salvati su file csv per il successivo riutilizzo in ambiente extra-aziendale (il codice è commentato per evitare l'esecuzione in ambiente extra aziendale).
 
 ```{r}
 # webdb = odbcConnect("webdb64", uid="*****", pwd="*****")
@@ -149,11 +147,10 @@ richieste = read.csv("richieste.csv")
 \
 \
 
-### Sistemazione della tabella delle richieste
-\
+### Sistemazione della tabella *richieste*
 
 **Data e orario** della richiesta sono salvate in formato *Unix Timestamp* (tempo da Unix Epoch, in secondi).\
-Si trasforma il campo **ux_time** in **oggetto dataora**, rimuovendo il campo originale.
+Si trasforma quindi il campo **ux_time** in **oggetto dataora**, rimuovendo il campo originale.
 
 ```{r}
 richieste = richieste %>%
@@ -222,12 +219,16 @@ users = users %>%
   mutate (sede = case_when(
     id_sede==2 ~ "UD", 
     id_sede==1 ~ "PN"))
+
 utenti_per_sede = users %>%
   group_by(sede) %>%
   summarise(n=n()) %>%
   mutate (distribuzione = "Utenti", perc = n/sum(n))
+
 utenti_per_sede
 ```
+\
+\
 
 **Come sono distribuite le richieste per ciascuna sede?**
 
@@ -257,8 +258,9 @@ ggplot(glob, aes(x=sede, y=perc, fill=distribuzione)) +
     labs(title="Distribuzione utenti e richieste, per sede", x="Sede", y = "distribuzione")
     
 ```
+\
 Il grafico a barre evidenzia che dalla sede di Udine vengono generate ancora relativamente poche richieste rispetto al numero degli utenti della sede. Questo indica che la sede di Udine è ancora in una fase iniziale di adozione dello strumento, con notevole potenziale di crescita.\
-
+\
 
 **Come è evoluto nel tempo il numero di richieste per ciascuna sede?**
 
@@ -277,22 +279,15 @@ ggplot (mensili, aes(sede, n, color=sede)) +
   geom_boxplot() +
   labs(title="Numero mensile di pagine richieste, per sede", x="Sede", y = "# richieste")
 ```
-Il boxplot evidenzia che l'andamento mensile delle richieste 
-
-
-  + _Com'è l'andamento intraday delle richieste_
+Il boxplot evidenzia che l'andamento mensile delle richieste di Udine non ha avuto particolari picchi positivi o negativi. Le richieste dalla sede di Pordenone presentano invece una variabiltà maggiore.\
+Questa maggior variabilità è probabilmente da collegare al numero più elevato di richieste.
+\
+\
     
 **Come è evoluto nel tempo l'utilizzo della intranet?**\
 
-Richieste per mese / sede
-
-
-
-Distribuzione delle richieste mensili, per sede
-
-
-
-**Andamento temporale**
+Essendo lo strumento in fase di adozione, è interessante indagare sul trend delle richieste generate da ciascuna delle sedi.\
+Viene pertanto generato un grafico di dispersione, al quale si aggiunge una retta parametrizzata secondo un modello lineare ottenuto dai dati. 
 
 ```{r}
 mensiliPN = mensili %>%
@@ -312,21 +307,68 @@ ggplot(mensili, aes(mese, n, color=sede)) +
               slope = modUD$coefficients[2], 
               color = "green", linewidth = 1.5)
 ```
-L'analisi mostra che ...
+\
+\
 
+Il grafico mostra che le richieste dalla sede di Pordenone hanno tasso di crescita maggiore di quello di Udine, nonostante la sede di Pordenone utilizzi lo strumento da più tempo.\
+La sede di Udine invece dimostra ancora un trend debolmente crescente.\
+E' verosimile che con il progredire del porting sulla intranet delle applicazioni Lotus e FileMakert, il trend per la sede di Udine migliorerà notevolmente.
+\
+\
+**Com'è l'andamento _intraday_ delle richieste?**
+
+E' interessante indagare quali sono le fasce orarie di maggior utilizzo della Intranet, per capire le abitudini degli utenti.\
+Per fare questo si procede a raggruppare le richieste per fascia oraria.
+Il nuovo campo _fascia_oraria_ riporta l'estremo inferiore dell'intervallo (es: la fascia dalle 8.00 alle 8.59 è indicata con intero "8").
+```{r}
+richieste = richieste %>% mutate (fascia_oraria = hour(floor_date(dataora, unit="hour")))
+```
+\
+La fascia oraria generata necessita di un aggiustamento, in quanto l'orario originale sul DB è uno orario GMT.\
+Alla fascia quindi va aggiunto un opportuno _off-set_ in funzione dell'ora solare (+1) o legale (+2).
+```{r}
+richieste = richieste %>%
+  mutate(fascia_oraria = case_when(
+    dataora < "2021-10-31" ~ fascia_oraria +2,
+    dataora %within% interval (ymd("2021-10-31"), ymd("2022-03-27")) ~ fascia_oraria +1,
+    dataora %within% interval (ymd("2022-03-28"), ymd("2022-10-30")) ~ fascia_oraria +2,
+    dataora > "2022-10-30" ~ fascia_oraria +1
+  ))
+```
+\
+Si procede quindi a generare un istogramma per rappresentare l'andamento delle richieste per fascia oraria e per sede.
+```{r}
+ggplot(richieste, aes(x=fascia_oraria)) +
+  geom_histogram(binwidth=1,color="red", fill="grey") + 
+  facet_wrap("sede")
+```
+\
+\
+
+Il grafico evidenzia che le richieste sono concentrate nella fascia antimeridiana, con un picco nella fasce orarie 8-9 e 9-10.\
+Fatte le dovute proporzioni, l'andamento è sovrapponibile per le due sedi.\
+Il picco di richieste nella fascia oraria 8-9 per la sede di Pordenone è dovuto al fatto che, per ragioni storiche, gli utenti di Pordenone utilizzano la intranet come pagina iniziale all'apertura del browser.
+\
+\
 
 ## Analisi User Agent
 
 **Quali browser sono utilizzati?**
 
-Il browser può essere identificato ispezionando la stringa **user_agent**
+Di particolare interesse risulta indagare sul browser utilizzato dagli utenti.\
+L'IT dell'ente suggerisce l'utilizzo di Google Chrome per una migliore compatabilità con la suite Google Workspace adottata, ma per ragioni di compatibilità è normalmente ammesso l'uso di qualsiasi browser purchè supportato dal relativo produttore.\
+\
 
+Il browser può essere identificato ispezionando la stringa **user_agent**.\
 [RFC 7231 - Sezione 5.5.3](https://www.rfc-editor.org/rfc/rfc7231#section-5.5.3)
+\
+Per l'identificazione mi sono avvalso di alcuni _pattern_ reperiti in rete.\
 [Articolo su developer.mozilla.org](https://developer.mozilla.org/en-US/docs/Web/HTTP/Browser_detection_using_the_user_agent)
+\
 
+Di seguito si visualizza la distribuzione generale, quindi quella per sede.
 
 ```{r}
-
 richieste = richieste %>% mutate (browser = "Other")
 
 richieste = richieste %>%
@@ -344,13 +386,24 @@ browser = richieste %>% group_by(browser, sede) %>% count() %>%
 
 ggplot(richieste) +
   geom_bar(aes(browser, fill = browser))
+```
 
+```{r}
 ggplot(richieste) +
   geom_bar(aes(browser, fill = browser)) +
   facet_wrap("sede")
-
 ```
-```{r}
+\
+
+Si conferma la netta predominanza di Goole Chrome.\
+Interessante osservare che presso la sede di PN c'è una quota di richieste provenienti da browser Microsoft Edge in versione Chrome - based.
+\
+Da approfondire il dato relativo all'utilizzo di IE10/IE11, considerato che il prodotto è in _end-of-life_ e verrà automaticamente disabilitato nel corso del mese di febbraio 2023.
+\
+Si decide pertanto di verificare l'evoluzione nel tempo dell'uso di browser IE10/IE11
+\
+\
+```{r message=FALSE, warning=FALSE}
 
 mensiliIE = richieste %>% filter (str_detect(browser, "IE")) %>%
   group_by(mese = floor_date(dataora, unit = "month"), sede) %>%
@@ -375,6 +428,10 @@ ggplot(mensiliIE, aes(mese, n, color=sede)) +
   labs(title="Numero mensile di pagine richieste da browser IE (10 e 11), per sede", x="Sede", y = "# richieste")
 
 ```
+\
+L'analisi è di conforto, perchè è evidenyte il progressivo abbandono del browser IE10/IE11.\
+I dati rilevati a dicembre 2022 mostrano infatti un numero residuo di richieste inferiore alle 100 unità per entrambe le sedi.\
+\
 
 
 ## Analisi applicazione
@@ -475,22 +532,6 @@ ggplot(richieste)+
 
 
 
-```{r}
-richieste = richieste %>% mutate (fascia_oraria = hour(floor_date(dataora, unit="hour")))
-
-richieste = richieste %>%
-  mutate(fascia_oraria = case_when(
-    dataora < "2021-10-31" ~ fascia_oraria +2,
-    dataora %within% interval (ymd("2021-10-31"), ymd("2022-03-27")) ~ fascia_oraria +1,
-    dataora %within% interval (ymd("2022-03-28"), ymd("2022-10-30")) ~ fascia_oraria +2,
-    dataora > "2022-10-30" ~ fascia_oraria +1
-  ))
-
-ggplot(richieste, aes(x=fascia_oraria)) +
-  geom_histogram(binwidth=1,color="red", fill="grey") + 
-  facet_wrap("sede")
-
-```
 
 ```{r}
 ggplot(richieste %>% filter ((fascia_oraria==8) | (fascia_oraria==16))) +
