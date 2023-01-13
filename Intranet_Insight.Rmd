@@ -118,6 +118,7 @@ library(ggplot2)
 ```
 \
 \
+
 ### Importazione dati da sorgente ODBC
 
 I dati sono estratti dal DB Microsoft SQL Server aziendale.
@@ -195,7 +196,7 @@ Per fare questo si sfrutta il fatto che le due sedi utilizzano due _subnet_ dive
 * 10.29.x.x identifica il traffico proveniente dalla sede di Udine
 * 10.22.x.x identifica il traffico proveniente dalla sede di Pordenone
 
-Le richieste provenienti da indirizzi IP non appartenenti a queste subnet si riferiscono a client operanti al di fuori di queste due sedi (tipicamente client da VPN), e non sono quindi riconducibili a nessina delle due sedi.
+Le richieste provenienti da indirizzi IP non appartenenti a queste subnet si riferiscono a client operanti al di fuori di queste due sedi (tipicamente client da VPN), e non sono quindi riconducibili a nessuna delle due sedi.
 
 ```{r}
 richieste = richieste %>%
@@ -259,14 +260,10 @@ ggplot(glob, aes(x=sede, y=perc, fill=distribuzione)) +
     
 ```
 \
-Il grafico a barre evidenzia che dalla sede di Udine vengono generate ancora relativamente poche richieste rispetto al numero degli utenti della sede. Questo indica che la sede di Udine è ancora in una fase iniziale di adozione dello strumento, con notevole potenziale di crescita.\
+Il grafico a barre evidenzia che dalla sede di Udine vengono generate ancora relativamente poche richieste rispetto al numero degli utenti della sede. Questo conferma che la sede di Udine è ancora in una fase iniziale di adozione dello strumento, con notevole potenziale di crescita.\
 \
 
-**Come è evoluto nel tempo il numero di richieste per ciascuna sede?**
-
-Per comprendere con quale velocità le sedi stanno adottando lo strumento, si procede con una analisi temporale sfruttando la serie storica disponibile (maggio 2021 - dicembre 2022).
-
-Si raggruppano quindi le richieste per sede e per mese, visualizzando quindi il dato in un boxplot
+Si procede raggruppando le richieste per sede e per mese, visualizzando quindi il dato in un boxplot
 
 ```{r message=FALSE, warning=FALSE}
 mensili = richieste %>%
@@ -279,12 +276,14 @@ ggplot (mensili, aes(sede, n, color=sede)) +
   geom_boxplot() +
   labs(title="Numero mensile di pagine richieste, per sede", x="Sede", y = "# richieste")
 ```
-Il boxplot evidenzia che l'andamento mensile delle richieste di Udine non ha avuto particolari picchi positivi o negativi. Le richieste dalla sede di Pordenone presentano invece una variabiltà maggiore.\
-Questa maggior variabilità è probabilmente da collegare al numero più elevato di richieste.
+\
+Il boxplot evidenzia che l'andamento mensile delle richieste di Udine non ha avuto particolari picchi positivi o negativi. Le richieste dalla sede di Pordenone presentano invece una variabiltà maggiore, giustificabile considerando il numero più elevato di richieste in termini di valore assoluto.
 \
 \
-    
-**Come è evoluto nel tempo l'utilizzo della intranet?**\
+
+**Come è evoluto nel tempo il numero di richieste per ciascuna sede?**
+
+Per comprendere con quale velocità le sedi stanno adottando lo strumento, si procede con una analisi temporale sfruttando la serie storica disponibile (maggio 2021 - dicembre 2022).
 
 Essendo lo strumento in fase di adozione, è interessante indagare sul trend delle richieste generate da ciascuna delle sedi.\
 Viene pertanto generato un grafico di dispersione, al quale si aggiunge una retta parametrizzata secondo un modello lineare ottenuto dai dati. 
@@ -312,13 +311,14 @@ ggplot(mensili, aes(mese, n, color=sede)) +
 
 Il grafico mostra che le richieste dalla sede di Pordenone hanno tasso di crescita maggiore di quello di Udine, nonostante la sede di Pordenone utilizzi lo strumento da più tempo.\
 La sede di Udine invece dimostra ancora un trend debolmente crescente.\
-E' verosimile che con il progredire del porting sulla intranet delle applicazioni Lotus e FileMakert, il trend per la sede di Udine migliorerà notevolmente.
+E' verosimile che con il progredire del porting sulla intranet delle applicazioni Lotus e FileMaker, il trend per la sede di Udine migliorerà notevolmente.
 \
 \
 **Com'è l'andamento _intraday_ delle richieste?**
 
 E' interessante indagare quali sono le fasce orarie di maggior utilizzo della Intranet, per capire le abitudini degli utenti.\
-Per fare questo si procede a raggruppare le richieste per fascia oraria.
+Questo aspetto può essere significativo ad esempio per pianificare attività manutentive sul portale in fasce orarie poco "affollate".
+Per fare questo si procede a raggruppare le richieste per fascia oraria.\
 Il nuovo campo _fascia_oraria_ riporta l'estremo inferiore dell'intervallo (es: la fascia dalle 8.00 alle 8.59 è indicata con intero "8").
 ```{r}
 richieste = richieste %>% mutate (fascia_oraria = hour(floor_date(dataora, unit="hour")))
@@ -343,7 +343,6 @@ ggplot(richieste, aes(x=fascia_oraria)) +
   facet_wrap("sede")
 ```
 \
-\
 
 Il grafico evidenzia che le richieste sono concentrate nella fascia antimeridiana, con un picco nella fasce orarie 8-9 e 9-10.\
 Fatte le dovute proporzioni, l'andamento è sovrapponibile per le due sedi.\
@@ -356,7 +355,8 @@ Il picco di richieste nella fascia oraria 8-9 per la sede di Pordenone è dovuto
 **Quali browser sono utilizzati?**
 
 Di particolare interesse risulta indagare sul browser utilizzato dagli utenti.\
-L'IT dell'ente suggerisce l'utilizzo di Google Chrome per una migliore compatabilità con la suite Google Workspace adottata, ma per ragioni di compatibilità è normalmente ammesso l'uso di qualsiasi browser purchè supportato dal relativo produttore.\
+L'ente non impone l'utilizzo di un particolare browser, anche se il reparto IT indica come preferibile l'utilizzo di Google Chrome per una migliore compatabilità con la suite Google Workspace adottata.\
+Per ragioni di compatibilità è infatti ammesso l'uso di qualsiasi browser purchè supportato dal relativo produttore.\
 \
 
 Il browser può essere identificato ispezionando la stringa **user_agent**.\
@@ -365,8 +365,6 @@ Il browser può essere identificato ispezionando la stringa **user_agent**.\
 Per l'identificazione mi sono avvalso di alcuni _pattern_ reperiti in rete.\
 [Articolo su developer.mozilla.org](https://developer.mozilla.org/en-US/docs/Web/HTTP/Browser_detection_using_the_user_agent)
 \
-
-Di seguito si visualizza la distribuzione generale, quindi quella per sede.
 
 ```{r}
 richieste = richieste %>% mutate (browser = "Other")
@@ -380,7 +378,12 @@ richieste = richieste %>%
     str_detect(user_agent, "Chrome/") ~ "Chrome",
     TRUE ~ "Other"
   ))
+```
+\
 
+Di seguito si visualizza la distribuzione generale, quindi quella per sede.
+
+```{r}
 browser = richieste %>% group_by(browser, sede) %>% count() %>%
   mutate (perc = n / nrow(richieste))
 
@@ -395,16 +398,15 @@ ggplot(richieste) +
 ```
 \
 
-Si conferma la netta predominanza di Goole Chrome.\
-Interessante osservare che presso la sede di PN c'è una quota di richieste provenienti da browser Microsoft Edge in versione Chrome - based.
+Si conferma la netta prevalenza dell'uso del browser Google Chrome.\
+Interessante osservare che presso la sede di PN è presente una quota di richieste provenienti da browser Microsoft Edge (in particolare la nuova versione Chrome - based).
 \
 Da approfondire il dato relativo all'utilizzo di IE10/IE11, considerato che il prodotto è in _end-of-life_ e verrà automaticamente disabilitato nel corso del mese di febbraio 2023.
 \
-Si decide pertanto di verificare l'evoluzione nel tempo dell'uso di browser IE10/IE11
+Si decide pertanto di verificare l'evoluzione nel tempo dell'uso di browser IE10/IE11, tracciando uno scatterplot per sede con l'aggiunta di una retta che modella l'andamento.
 \
 \
 ```{r message=FALSE, warning=FALSE}
-
 mensiliIE = richieste %>% filter (str_detect(browser, "IE")) %>%
   group_by(mese = floor_date(dataora, unit = "month"), sede) %>%
   summarise(n=n())
@@ -429,17 +431,26 @@ ggplot(mensiliIE, aes(mese, n, color=sede)) +
 
 ```
 \
-L'analisi è di conforto, perchè è evidenyte il progressivo abbandono del browser IE10/IE11.\
-I dati rilevati a dicembre 2022 mostrano infatti un numero residuo di richieste inferiore alle 100 unità per entrambe le sedi.\
+L'analisi è di conforto, perchè è evidente il progressivo abbandono del browser IE10/IE11.\
+I dati rilevati a dicembre 2022 mostrano infatti un numero residuo di richieste inferiore alle 100 unità per entrambe le sedi (prossimo allo zero per la sede di Udine).\
 \
 
 
-## Analisi applicazione
-**Quali sono le applicazioni più utilizzate?**\
-**(SUB) Quali sono le parole più ricercate in rubrica?**\
+## Analisi dell'utilizzo delle applicazioni della Intranet
 
+Attraverso il portale vengono erogati alcuni servizi, desumibili dalla URI contenuta nella tabella **richieste**.
+\
+Alla tabella **richieste** viene pertanto aggiunto un nuovo campo identificando l'applicazione utilizzata, secondo il seguente schema:
+
+* **Homepage**
+* **Rubrica**: piccolo motore per la ricerca dei contatti aziendali
+* **OdsCom**: applicazione per la distribuzone dei Ordini di Servizio / Comunicazioni
+* **Documenti**: repository di documenti di interesse aziendale
+* **News**: gestione e consultazione di _news_ di interesse aziendale
+* **UserProfile**: gestione del proprio profilo utente
+
+Vengono inoltre identificate alcune richieste residue tipicamente generate da errori di compilazione di *form* presenti in applicazioni della intranet, e vengono raggruppate le rimanenti richieste sotto la voce "Other".
 ```{r}
-
 richieste = richieste %>%
   mutate (application = case_when(
     req_uri=="/" ~ "Homepage",
@@ -452,20 +463,34 @@ richieste = richieste %>%
     str_detect(req_uri, "userprofile|usermanage") ~ "UserProfile",
     TRUE ~ "Other")
   )
+```
+\
+\
 
+### Quali sono le applicazioni più utilizzate?
+
+Innanzi tutto vengono raggruppate le richieste per applicazione, e viene generato un barplot per confrontare l'utilizzo delle applicazioni in ciascuna sede.
+\
+```{r}
 richieste %>%
   group_by(application) %>%
   summarise(n=n()) %>%
   arrange (desc(n))
 
 ggplot(richieste %>% filter (application!="Homepage")) +
-  geom_bar(aes(application, fill=application)) + 
-  facet_wrap("sede")
+  geom_bar(aes(sede, fill=sede)) +
+  coord_flip() +
+  facet_wrap("application")
 
 ```
+\
+Da questa visualizzazione si nota alcune applicazioni (OdsCom, UserProfile, News) sono utilizzate presso le due sedi in misura proporzionale al numero di utenti potenziali (UD > PN).
+\
+Due applicazioni particolari invece (Documenti e Rubrica) sono usate prevalentemente a Pordenone.
+\
+E' utile quindi indagare sull'andamento storico dell'utilizzo di queste due applicazioni, per capire se ci si può attendere un'evoluzione 
 
-
-```{r}
+```{r message=FALSE, warning=FALSE}
 mensiliDoc = richieste %>% filter (application == "Documenti") %>%
   group_by(mese = floor_date(dataora, unit = "month"), sede) %>%
   summarise(n=n())
@@ -525,13 +550,7 @@ ggplot(richieste)+
 **L'applicazione influenza il tempo di esecuzione?**
 
 
-
-
-
 **L'orario influenza il tempo di esecuzione?**
-
-
-
 
 ```{r}
 ggplot(richieste %>% filter ((fascia_oraria==8) | (fascia_oraria==16))) +
@@ -539,3 +558,9 @@ ggplot(richieste %>% filter ((fascia_oraria==8) | (fascia_oraria==16))) +
   coord_cartesian(xlim = quantile(richieste$exec_time, c(0.001, 0.997))) +
   facet_wrap("fascia_oraria")
 ```
+**La vera differenza la fa il login**
+
+
+**(SUB) Quali sono le parole più ricercate in rubrica?**\
+
+
