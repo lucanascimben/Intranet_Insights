@@ -116,7 +116,7 @@ L'obiettivo è di indagare il _data set_ relativamente ai seguenti aspetti:
 
 
 
-```{r warning=FALSE, include=FALSE}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 #Package RODBC
 library(RODBC)
 #Package Tidyverse
@@ -129,12 +129,12 @@ library(ggplot2)
 library(tm)
 library(NLP)
 #SnowballC
-library(SnowballC)
+# library(SnowballC)
 #Quanteda
 library(quanteda)
 #Package wordcloud
-library(wordcloud)
 library(RColorBrewer)
+library(wordcloud)
 
 
 ```
@@ -571,7 +571,7 @@ ggplot(richieste)+
   coord_cartesian(xlim = quantile(richieste$exec_time, c(0, 0.999)))
 ```
 \
-Si può notare che il tempo di esecuzione presenta una distribuzione caratterizzata da una coda lunga a destra, con una tempo di esecuzione mediano di 0.185s
+Si può notare che il tempo di esecuzione presenta una distribuzione caratterizzata da una coda lunga a destra, con una tempo di esecuzione mediano di 0.185s; sono presenti inoltre numerosi _outliers_ sulla coda destra.
 
 **L'applicazione influenza il tempo di esecuzione?**
 
@@ -582,9 +582,9 @@ Si procede quindi a plottare un grafico a dispersione generale ed un boxplot per
 
 ```{r}
 ggplot(richieste)+
-  geom_point(aes(x=exec_time, y=application))
+  geom_point(aes(x=exec_time, y=application), alpha = 0.05,)
 
-ggplot(richieste %>% filter (application != "Other", application != "Error", application != "UserProfile", application != "News"))+
+ggplot(richieste %>% filter (application != "Other", application != "Error", application != "UserProfile", application != "News")) +
   geom_boxplot(aes(x=exec_time), outlier.shape = NA) +
   coord_cartesian(xlim = quantile(richieste$exec_time, c(0, 0.996))) +
   facet_wrap("application")
