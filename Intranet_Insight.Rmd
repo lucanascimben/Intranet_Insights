@@ -96,15 +96,25 @@ L'obiettivo è di indagare il _data set_ relativamente ai seguenti aspetti:
 
 **Packages installati**
 
-* **RODBC**
-  + Interfaccia database ODBC
-  
 * **Tidyverse**
   + tidyr
   + dplyr
   + lubridate
   + stringr
   + ggplot2
+
+* **RODBC**
+  + Interfaccia database ODBC
+
+* **tm**
+
+* **SnowballC**
+
+* **Quanteda**
+
+* **wordcloud**
+
+
 
 ```{r warning=FALSE, include=FALSE}
 #Package RODBC
@@ -115,7 +125,20 @@ library(dplyr)
 library(lubridate) 
 library(stringr) 
 library(ggplot2)
+#tm
+library(tm)
+library(NLP)
+#SnowballC
+library(SnowballC)
+#Quanteda
+library(quanteda)
+#Package wordcloud
+library(wordcloud)
+library(RColorBrewer)
+
+
 ```
+
 \
 \
 
@@ -424,7 +447,7 @@ ggplot(mensiliIE, aes(mese, n, color=sede)) +
   geom_abline(intercept = modPNIE$coefficients[1], 
               slope = modPNIE$coefficients[2], 
               color = "red", linewidth = 1.5) + 
-    geom_abline(intercept = modUDIE$coefficients[1], 
+  geom_abline(intercept = modUDIE$coefficients[1], 
               slope = modUDIE$coefficients[2], 
               color = "green", linewidth = 1.5) +
   labs(title="Numero mensile di pagine richieste da browser IE (10 e 11), per sede", x="Sede", y = "# richieste")
@@ -477,7 +500,7 @@ richieste %>%
   summarise(n=n()) %>%
   arrange (desc(n))
 
-ggplot(richieste %>% filter (application!="Homepage")) +
+ggplot(richieste %>% filter (application!="Homepage", application!="Other")) +
   geom_bar(aes(sede, fill=sede)) +
   coord_flip() +
   facet_wrap("application")
@@ -538,29 +561,130 @@ ggplot(mensiliRub, aes(mese, n, color=sede)) +
 
 ## Analisi tempo di esecuzione dello script PHP
 
+Una prima analisi viene effettuata sulla totalità delle richieste, plottando un boxplot e un grafico a dispersione
 
 ```{r}
-ggplot(richieste)+
-  geom_boxplot(aes(x=exec_time), outlier.shape = NA) +
-  coord_cartesian(xlim = quantile(richieste$exec_time, c(0.001, 0.997))) +
-  facet_wrap("application")
-```
+richieste %>% summarize(median(exec_time))
 
+ggplot(richieste)+
+  geom_boxplot(aes(x=exec_time)) +
+  coord_cartesian(xlim = quantile(richieste$exec_time, c(0, 0.999)))
+```
+\
+Si può notare che il tempo di esecuzione presenta una distribuzione caratterizzata da una coda lunga a destra, con una tempo di esecuzione mediano di 0.185s
 
 **L'applicazione influenza il tempo di esecuzione?**
 
+Si vuole indagare quali variabili influiscano il tempo di esecuzione dello script che genera la pagina.\
+La prima idea è di verificare se le diverse applicazioni presentino tempi di esecuzioni diversi.\
+L'analisi si concentrerà sulle applicazioni con il maggiorn numero di richieste, per avere dei dati maggiormente significativi.\
+Si procede quindi a plottare un grafico a dispersione generale ed un boxplot per le applicazioni maggiormente utilizzae\
+
+```{r}
+ggplot(richieste)+
+  geom_point(aes(x=exec_time, y=application))
+
+ggplot(richieste %>% filter (application != "Other", application != "Error", application != "UserProfile", application != "News"))+
+  geom_boxplot(aes(x=exec_time), outlier.shape = NA) +
+  coord_cartesian(xlim = quantile(richieste$exec_time, c(0, 0.996))) +
+  facet_wrap("application")
+```
+\
+Si nota una distribuzione nettamente diversa per l'applicazione OdsCom, mentre le altre analizzate hanno un comportamento sovrapponibile a quello generale.\
+Da notare che sia l'applicazione "Documenti" sia l'applicazione "OdSCom" sono aratterizzate dall'accesso al file system, partciolare che avrebbe potuto influire allo stesso modo sul tempo di esecuzione, cosa che invece non viene evidenziata dall'analisi.\
+L'altro fattore che potrebbe influire è il fatto che la pagina sia stata richiesta prima o dopo aver effettuato il login utente, in quanto dopo il login la generazione della pagina comporta uan maggiore complessità degli script da eseguire (in particolare in termini di numero di query sul db).\
+Procediamo quindi a caratterizzare le richieste per questo fattore.
+\
+Innanzi tutto creo un nuovo campo logged_in impostandolo a TRUE o FALSE
+
+```{r}
+richieste = richieste %>% 
+  mutate (logged_in = case_when(
+    userid=="" ~ FALSE,
+    TRUE ~ TRUE))
+```
+
+\
+Si passa quindi a plottare un boxplot sul tempo di esecuzione, suddiviso per richieste loggate e non loggate
+
+```{r message=FALSE, warning=FALSE}
+rlg = richieste %>% 
+  select (application, logged_in, exec_time) %>% 
+  group_by(application, logged_in) %>% 
+  summarize(m = median(exec_time))
+
+ggplot (richieste) +
+  geom_boxplot(aes(logged_in, exec_time), outlier.shape = NA) +
+  coord_cartesian(ylim = quantile(richieste$exec_time, c(0, 0.98)))
+
+ggplot (richieste %>% filter (application!="Error", 
+                              application!="News", 
+                              application!="OdsCom",
+                              application!="UserProfile",
+                              application!="Other") )+
+  geom_boxplot(aes(logged_in, exec_time), outlier.shape = NA) +
+  coord_cartesian(ylim = quantile(richieste$exec_time, c(0, 0.98))) +
+  facet_wrap("application")
+```
+\
+Dal boxplot risulta evidente che le richieste "logged_in" hanno un tempo di esecuzione di molte volte maggiore, anche per applicazioni il cui login non è necessario e non incide quindi sull'esecuzione dell'applicazione stessa.\
+A questo punto il fattore che influisce sul tempo di esecuzione è individuabile sulle parti di script che vengono eseguite solo ad utente loggato, come la generazione del menù personalizzato e la generazione dell'area delle notifiche.
 
 **L'orario influenza il tempo di esecuzione?**
 
+Un'ultima curiosità riguarda l'influenza della fascia oraria sul tempo di esecuzione, ipotizzando che nelle fasce con il maggior numero di richieste si possa riscontrare un tempo di esecuzione maggiore.\
+Allo scopo si esamina la distribuzione del tempo di esecuzione nella fascia con maggior numero di richieste (8-9) con la fascia di fine giornata lavorativa (17-18):
+\
+
 ```{r}
-ggplot(richieste %>% filter ((fascia_oraria==8) | (fascia_oraria==16))) +
+ggplot(richieste %>% filter ((fascia_oraria==8) | (fascia_oraria==17))) +
   geom_boxplot(aes(x=exec_time), outlier.shape = NA) +
   coord_cartesian(xlim = quantile(richieste$exec_time, c(0.001, 0.997))) +
   facet_wrap("fascia_oraria")
 ```
-**La vera differenza la fa il login**
+\
+Non si riscontrano differenze significative, pertanto si conclude che nelle fasce di punta non ci sia un degrado di prestazioni dei server interessati.
 
 
 **(SUB) Quali sono le parole più ricercate in rubrica?**\
+
+Con alcune semplici tecniche di text-mining si isolano le chiavi di ricerca 
+
+```{r}
+chiavi = richieste %>% 
+  filter(application=="Rubrica") %>% 
+  select (req_uri)
+
+# separo la stringa contenente la key
+chiavi = chiavi %>% separate(req_uri, c("app", "key"), "key=")
+
+#rimuovo le key vuote
+chiavi = chiavi %>% filter (key!="") %>% select (-app)
+
+#trasformo tutte le parole in minuscolo
+chiavi = chiavi %>% mutate (key = str_to_lower(key)) 
+
+#trasformo il dataframe in oggetto corpus
+corp <- corpus(chiavi, text_field="key")
+
+#creo la document matrix
+dtm <- TermDocumentMatrix(corp)
+m <- as.matrix(dtm)
+v <- sort(rowSums(m),decreasing=TRUE)
+d <- data.frame(word = names(v),freq=v)
+
+#visualizzo le prime 100 parole di ricerca
+head(d, 100)
+
+# genero la wordcloud
+wordcloud(words = d$word, freq = d$freq, min.freq = 10,
+          max.words=200, random.order=FALSE, rot.per=0.35, scale=c(2, .5), 
+          colors=brewer.pal(8, "Dark2"))
+
+```
+
+
+
+
 
 
