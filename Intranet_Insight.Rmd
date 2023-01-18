@@ -1,11 +1,16 @@
 ---
 title: "Progetto: Intranet Insight"
 author: "Studente: Luca Nascimben"
-output: html_document
+output: 
+  html_document:
+    keep_md: yes
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+                      dev = "png",
+                      dpi = 300
+                      )
 ```
 ## Corso di Fondamenti di Scienza dei Dati e Laboratorio
 ### AA 2021 - 2022
@@ -22,7 +27,7 @@ L'obiettivo del progetto è di analizzare i dati relativi alla navigazione delle
 
 ### Contesto
 
-Nel 2018 le Camere di Commercio di Pordenone e Udine si accorpano e viene costituito un unico Ente con due sedi nei rispettivi capoluoghi (Pordenone e Udine)\
+Nel 2018 le Camere di Commercio di Pordenone e Udine si accorpano e viene costituito un unico Ente con due sedi nei rispettivi capoluoghi (Pordenone e Udine).\
 Il processo di accorpamento è complesso e, tra i vari aspetti, comprende anche la convergenza dei sistemi informativi.\
 Tale processo è tuttora in corso e viene gestito per step successivi, razionalizzando le risorse umane, economiche e tecnologiche disponibili.\
 \
@@ -45,7 +50,7 @@ Il primo step di questo processo ha comportato un _refactoring_ della piattaform
 ### Origine e descrizione del _dataset_
 
 Contestualmente alle operazione di _refactoring_, è stata inserita una porzione di codice per registrare nel DataBase i dati di navigazione degli utenti.
-Nello specifico, per ogni pagina richiesta al server vengono registrate le seguenti informazioni nella tabella *home_stats* del database, che viene importata _as-is_ per la successiva elaborazione:
+Nello specifico, per ogni **pagina richiesta** al server vengono registrate le seguenti informazioni nella tabella *home_stats* del database, che viene importata _as-is_ per la successiva elaborazione:
 
 * *id* - Identificativo univoco del record
 * *session_id* - Session ID della [sessione PHP](https://www.php.net/manual/en/book.session.php)
@@ -66,13 +71,13 @@ Dal database viene anche mutuata parte della tabella *home_users* che contiene d
 \
 \
 
-### Obiettivi dell'analisi
+## Obiettivi dell'analisi
 
 L'obiettivo è di indagare il _data set_ relativamente ai seguenti aspetti:
 
-* **Analisi delle richieste in funzione della sede**
-  + _Come sono distribite le richieste per ciascuna sede?_
-  + _Come è evoluto nel tempo il numero di richieste per ciascuna sede?_
+* **Analisi temporale e geografica delle pagine richieste**
+  + _Come sono distribuite le richieste per ciascuna sede?_
+  + _Com'è evoluto nel tempo il numero di richieste per ciascuna sede?_
   + _Com'è l'andamento intraday delle richieste?_
 \
 * **Analisi del tipo di browser utilizzato**
@@ -82,19 +87,19 @@ L'obiettivo è di indagare il _data set_ relativamente ai seguenti aspetti:
 * **Analisi delle applicazioni (moduli della intranet) utilizzate**
   + _Quali sono le applicazioni maggiormente utilizzate?_
 \
-* **Tempo di generazione delle pagine**
+* **Performance del sistema**
   + _Qual'è il tempo medio di esecuzione degli script PHP?_
   + _Il tempo di esecuzione degli script è influenzato dall'applicazione?_
   + _Il tempo di esecuzione degli script è influenzato dalla fascia oraria?_
 \
 * **Analisi dell'utilizzo della rubrica**
-  + Quali sono le parole più ricercate?
+  + _Quali sono i termini più ricercati?_
 \
 \
 
-### Setup dell'ambiente di sviluppo
+## Setup dell'ambiente di sviluppo
 
-**Packages installati**
+### Packages installati
 
 * **Tidyverse**
   + tidyr
@@ -114,6 +119,7 @@ L'obiettivo è di indagare il _data set_ relativamente ai seguenti aspetti:
 
 * **wordcloud**
 
+* **Scales**
 
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
@@ -135,14 +141,15 @@ library(quanteda)
 #Package wordcloud
 library(RColorBrewer)
 library(wordcloud)
-
+#Package scales
+library(scales)
 
 ```
 
 \
 \
 
-### Importazione dati da sorgente ODBC
+## Importazione dati da sorgente ODBC
 
 I dati sono estratti dal DB Microsoft SQL Server aziendale.
 L'accesso viene fatto tramite driver ODBC e dati vengono salvati su file csv per il successivo riutilizzo in ambiente extra-aziendale (il codice è commentato per evitare l'esecuzione in ambiente extra aziendale).
@@ -171,7 +178,7 @@ richieste = read.csv("richieste.csv")
 \
 \
 
-### Sistemazione della tabella *richieste*
+## Sistemazione della tabella *richieste*
 
 **Data e orario** della richiesta sono salvate in formato *Unix Timestamp* (tempo da Unix Epoch, in secondi).\
 Si trasforma quindi il campo **ux_time** in **oggetto dataora**, rimuovendo il campo originale.
@@ -231,9 +238,9 @@ richieste = richieste %>%
 \
 \
 
-### Analisi delle richieste in funzione della sede
+## Analisi temporale e geografica delle pagine richieste
 
-**Numero utenti per sede**
+### Numero utenti per sede
 
 Per valutare correttamente la portata del numero di richieste proveniente dalle sedi, si procede preliminarmente alla valutazione della distribuzione degli utenti per ciascuna sede. (Nel tabella estratta da databse di riferimento la sede di PN è identificata con id_sede = 1, la sede di Udine è identificata con id_sede = 2)
 
@@ -251,12 +258,10 @@ utenti_per_sede = users %>%
 
 utenti_per_sede
 ```
-\
-\
 
-**Come sono distribuite le richieste per ciascuna sede?**
+### Come sono distribuite le richieste per ciascuna sede?
 
-Una prima analisi mira a capire come sono distribuite le richieste HTTP rispetto alla sede di provenienza
+Una prima analisi mira a capire come sono distribuite le richieste HTTP **rispetto alla sede di provenienza**.
 
 ```{r}
 richieste_per_sede = richieste %>% 
@@ -274,11 +279,13 @@ richieste_per_sede = richieste_per_sede %>% filter (sede != "Other")
 ```
 
 Si visualizza la distribuzione delle richieste confrontate con la distribuzione degli utenti, per sede
-```{r}
+```{r utenti_richieste}
 glob = rbind(utenti_per_sede, richieste_per_sede)
 
 ggplot(glob, aes(x=sede, y=perc, fill=distribuzione)) +
     geom_bar(stat='identity', position='dodge') + 
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()) +
     labs(title="Distribuzione utenti e richieste, per sede", x="Sede", y = "distribuzione")
     
 ```
@@ -294,24 +301,26 @@ mensili = richieste %>%
   summarise(n=n())
 ```
 
-```{r}
+```{r distrib_richieste_mensile}
 ggplot (mensili, aes(sede, n, color=sede)) +
   geom_boxplot() +
-  labs(title="Numero mensile di pagine richieste, per sede", x="Sede", y = "# richieste")
+  theme(legend.position='none') +
+    theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()) +
+  labs(title="Disribuzione numero mensile di pagine richieste, per sede", x="Sede", y = "# richieste")
 ```
 \
 Il boxplot evidenzia che l'andamento mensile delle richieste di Udine non ha avuto particolari picchi positivi o negativi. Le richieste dalla sede di Pordenone presentano invece una variabiltà maggiore, giustificabile considerando il numero più elevato di richieste in termini di valore assoluto.
 \
-\
 
-**Come è evoluto nel tempo il numero di richieste per ciascuna sede?**
+### Come è evoluto nel tempo il numero di richieste per ciascuna sede?
 
 Per comprendere con quale velocità le sedi stanno adottando lo strumento, si procede con una analisi temporale sfruttando la serie storica disponibile (maggio 2021 - dicembre 2022).
 
 Essendo lo strumento in fase di adozione, è interessante indagare sul trend delle richieste generate da ciascuna delle sedi.\
 Viene pertanto generato un grafico di dispersione, al quale si aggiunge una retta parametrizzata secondo un modello lineare ottenuto dai dati. 
 
-```{r}
+```{r trend_richieste_mensile}
 mensiliPN = mensili %>%
   filter (sede=="PN")
 mensiliUD = mensili %>%
@@ -327,20 +336,22 @@ ggplot(mensili, aes(mese, n, color=sede)) +
               color = "red", linewidth = 1.5) + 
     geom_abline(intercept = modUD$coefficients[1], 
               slope = modUD$coefficients[2], 
-              color = "green", linewidth = 1.5)
+              color = "turquoise", linewidth = 1.5) +
+    theme(legend.position = c(0.1, 0.85)) +
+
+    labs(title="Numero mensile di pagine richieste, per sede", x="Mese", y = "# richieste")
+
 ```
-\
 \
 
 Il grafico mostra che le richieste dalla sede di Pordenone hanno tasso di crescita maggiore di quello di Udine, nonostante la sede di Pordenone utilizzi lo strumento da più tempo.\
 La sede di Udine invece dimostra ancora un trend debolmente crescente.\
 E' verosimile che con il progredire del porting sulla intranet delle applicazioni Lotus e FileMaker, il trend per la sede di Udine migliorerà notevolmente.
 \
-\
-**Com'è l'andamento _intraday_ delle richieste?**
 
-E' interessante indagare quali sono le fasce orarie di maggior utilizzo della Intranet, per capire le abitudini degli utenti.\
-Questo aspetto può essere significativo ad esempio per pianificare attività manutentive sul portale in fasce orarie poco "affollate".
+### Com'è l'andamento _intraday_ delle richieste?
+
+E' interessante indagare quali sono le fasce orarie di maggior utilizzo della Intranet, per capire le abitudini degli utenti. Questo aspetto può essere significativo ad esempio per pianificare attività manutentive sul portale in fasce orarie poco "affollate". Inoltre puà dare una misura del corretto dimensionamento dell'infrastruttura dal punto di vista delle prestazioni a fronte di picchi di lavoro.\
 Per fare questo si procede a raggruppare le richieste per fascia oraria.\
 Il nuovo campo _fascia_oraria_ riporta l'estremo inferiore dell'intervallo (es: la fascia dalle 8.00 alle 8.59 è indicata con intero "8").
 ```{r}
@@ -348,7 +359,7 @@ richieste = richieste %>% mutate (fascia_oraria = hour(floor_date(dataora, unit=
 ```
 \
 La fascia oraria generata necessita di un aggiustamento, in quanto l'orario originale sul DB è uno orario GMT.\
-Alla fascia quindi va aggiunto un opportuno _off-set_ in funzione dell'ora solare (+1) o legale (+2).
+Alla fascia quindi va aggiunto un opportuno _off-set_ in funzione dell'ora solare (+1) o legale (+2), normalizzado tutti gli orari all'ora legale.
 ```{r}
 richieste = richieste %>%
   mutate(fascia_oraria = case_when(
@@ -360,10 +371,11 @@ richieste = richieste %>%
 ```
 \
 Si procede quindi a generare un istogramma per rappresentare l'andamento delle richieste per fascia oraria e per sede.
-```{r}
+```{r intraday_richieste}
 ggplot(richieste, aes(x=fascia_oraria)) +
   geom_histogram(binwidth=1,color="red", fill="grey") + 
-  facet_wrap("sede")
+  facet_wrap("sede") +
+  labs(title="Distribuzione richieste per fascia oraria", x="Fascia oraria", y = "# richieste")
 ```
 \
 
@@ -373,16 +385,17 @@ Il picco di richieste nella fascia oraria 8-9 per la sede di Pordenone è dovuto
 \
 \
 
-## Analisi User Agent
+## Analisi del tipo di browser utilizzato
 
-**Quali browser sono utilizzati?**
+**Quali sono i browser utilizzati dagli utenti?**
+**C'è differenza tra le sedi?**
 
 Di particolare interesse risulta indagare sul browser utilizzato dagli utenti.\
 L'ente non impone l'utilizzo di un particolare browser, anche se il reparto IT indica come preferibile l'utilizzo di Google Chrome per una migliore compatabilità con la suite Google Workspace adottata.\
 Per ragioni di compatibilità è infatti ammesso l'uso di qualsiasi browser purchè supportato dal relativo produttore.\
 \
 
-Il browser può essere identificato ispezionando la stringa **user_agent**.\
+Il browser può essere identificato ispezionando il valore del dataset **user_agent**.\
 [RFC 7231 - Sezione 5.5.3](https://www.rfc-editor.org/rfc/rfc7231#section-5.5.3)
 \
 Per l'identificazione mi sono avvalso di alcuni _pattern_ reperiti in rete.\
@@ -403,33 +416,37 @@ richieste = richieste %>%
   ))
 ```
 \
-
 Di seguito si visualizza la distribuzione generale, quindi quella per sede.
 
-```{r}
+```{r richieste_browser1}
 browser = richieste %>% group_by(browser, sede) %>% count() %>%
   mutate (perc = n / nrow(richieste))
 
 ggplot(richieste) +
-  geom_bar(aes(browser, fill = browser))
+  geom_bar(aes(browser, fill = browser)) +
+  theme(legend.position='none') +
+  labs(title="Distribuzione richieste per browser utilizzato", x="Browser", y = "# richieste")
+
 ```
 
-```{r}
+```{r richieste_browser2}
 ggplot(richieste) +
   geom_bar(aes(browser, fill = browser)) +
-  facet_wrap("sede")
+  facet_wrap("sede") +
+  theme(legend.position='none') +
+  labs(title="Distribuzione richieste per browser utilizzato, per sede", x="Browser", y = "# richieste")
 ```
 \
 
-Si conferma la netta prevalenza dell'uso del browser Google Chrome.\
-Interessante osservare che presso la sede di PN è presente una quota di richieste provenienti da browser Microsoft Edge (in particolare la nuova versione Chrome - based).
+Si conferma la netta prevalenza dell'uso del browser Google Chrome, per entrambe le sedi.\
+Interessante osservare che presso la sede di PN è presente una quota di richieste provenienti da browser Microsoft Edge (nella nuova versione Chrome - based).
 \
 Da approfondire il dato relativo all'utilizzo di IE10/IE11, considerato che il prodotto è in _end-of-life_ e verrà automaticamente disabilitato nel corso del mese di febbraio 2023.
 \
 Si decide pertanto di verificare l'evoluzione nel tempo dell'uso di browser IE10/IE11, tracciando uno scatterplot per sede con l'aggiunta di una retta che modella l'andamento.
 \
 \
-```{r message=FALSE, warning=FALSE}
+```{r richieste_browser_IE, message=FALSE, warning=FALSE}
 mensiliIE = richieste %>% filter (str_detect(browser, "IE")) %>%
   group_by(mese = floor_date(dataora, unit = "month"), sede) %>%
   summarise(n=n())
@@ -449,8 +466,9 @@ ggplot(mensiliIE, aes(mese, n, color=sede)) +
               color = "red", linewidth = 1.5) + 
   geom_abline(intercept = modUDIE$coefficients[1], 
               slope = modUDIE$coefficients[2], 
-              color = "green", linewidth = 1.5) +
-  labs(title="Numero mensile di pagine richieste da browser IE (10 e 11), per sede", x="Sede", y = "# richieste")
+              color = "turquoise", linewidth = 1.5) +
+  theme(legend.position = c(0.9, 0.8)) +
+  labs(title="Numero mensile di pagine richieste da browser IE (10 e 11), per sede", x="Mese", y = "# richieste")
 
 ```
 \
@@ -494,7 +512,7 @@ richieste = richieste %>%
 
 Innanzi tutto vengono raggruppate le richieste per applicazione, e viene generato un barplot per confrontare l'utilizzo delle applicazioni in ciascuna sede.
 \
-```{r}
+```{r applicazioni}
 richieste %>%
   group_by(application) %>%
   summarise(n=n()) %>%
@@ -503,17 +521,20 @@ richieste %>%
 ggplot(richieste %>% filter (application!="Homepage", application!="Other")) +
   geom_bar(aes(sede, fill=sede)) +
   coord_flip() +
-  facet_wrap("application")
+  facet_wrap("application") +
+  theme(legend.position='none') +
+  labs(title="Pagine richieste per applicazione e per sede", x="# richieste", y = "Sede")
+
 
 ```
 \
-Da questa visualizzazione si nota alcune applicazioni (OdsCom, UserProfile, News) sono utilizzate presso le due sedi in misura proporzionale al numero di utenti potenziali (UD > PN).
+Da questa visualizzazione si nota che alcuni moduli  (OdsCom, UserProfile, News) sono utilizzate presso le due sedi in misura proporzionale al numero di utenti potenziali (UD > PN).
 \
 Due applicazioni particolari invece (Documenti e Rubrica) sono usate prevalentemente a Pordenone.
 \
-E' utile quindi indagare sull'andamento storico dell'utilizzo di queste due applicazioni, per capire se ci si può attendere un'evoluzione 
-
-```{r message=FALSE, warning=FALSE}
+E' utile quindi indagare sull'andamento storico dell'utilizzo di queste due applicazioni, per capire se ci si può attendere un'evoluzione .
+\
+```{r applicazioni_documenti, message=FALSE, warning=FALSE}
 mensiliDoc = richieste %>% filter (application == "Documenti") %>%
   group_by(mese = floor_date(dataora, unit = "month"), sede) %>%
   summarise(n=n())
@@ -533,8 +554,15 @@ ggplot(mensiliDoc, aes(mese, n, color=sede)) +
               color = "red", linewidth = 1.5) + 
     geom_abline(intercept = modUDDoc$coefficients[1], 
               slope = modUDDoc$coefficients[2], 
-              color = "green", linewidth = 1.5)
+              color = "turquoise", linewidth = 1.5) +
+    theme(legend.position = c(0.9, 0.85)) +
+    labs(title="Storico richieste applicazione Documenti, per sede", x="Mese", y = "# richieste")
+```
+\
+Per quanto riguarda il modulo **Documenti** non si apprezza un chiaro trend, ma l'analisi appare disturbata da alcuni picchi apparentemente anomali riscontrati tra agosto e dicembre 2021, in assenza dei quali si apprezzerebbe un trend positivo. I picchi sono probabilmente dovuti ad un _hype_ generato da una prima corposa pubblicazione di documenti.
+\
 
+```{r applicazioni_rubrica, message=FALSE, warning=FALSE}
 mensiliRub = richieste %>% filter (application == "Rubrica") %>%
   group_by(mese = floor_date(dataora, unit = "month"), sede) %>%
   summarise(n=n())
@@ -554,48 +582,70 @@ ggplot(mensiliRub, aes(mese, n, color=sede)) +
               color = "red", linewidth = 1.5) + 
     geom_abline(intercept = modUDRub$coefficients[1], 
               slope = modUDRub$coefficients[2], 
-              color = "green", linewidth = 1.5)
+              color = "turquoise", linewidth = 1.5) +
+    theme(legend.position = c(0.9, 0.15)) +
+    labs(title="Storico richieste applicazione Rubrica, per sede", x="Mese", y = "# richieste")
+
 ```
+\
+Il trend per il modulo Rubrica è invece più chiaramente individuabile: l'utilizzo della Rubrica ha avuto un costante aumento nel periodo osservato, con una _slope_ più elevata per Udine, tanto che nell'ultimo periodo osservato le due sedi hanno generato un numero di richieste sovrapponibile.
+\
 
+## Performance del sistema
 
-
-## Analisi tempo di esecuzione dello script PHP
+### Analisi tempo di esecuzione dello script PHP
 
 Una prima analisi viene effettuata sulla totalità delle richieste, plottando un boxplot e un grafico a dispersione
 
-```{r}
+```{r exec_time1}
 richieste %>% summarize(median(exec_time))
 
 ggplot(richieste)+
   geom_boxplot(aes(x=exec_time)) +
-  coord_cartesian(xlim = quantile(richieste$exec_time, c(0, 0.999)))
+  coord_cartesian(xlim = quantile(richieste$exec_time, c(0, 0.999))) +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+    panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) +
+  labs(title="Distribuzione del tempo di esecuzione degli script", x="Exec-time, in secondi")
+
 ```
 \
 Si può notare che il tempo di esecuzione presenta una distribuzione caratterizzata da una coda lunga a destra, con una tempo di esecuzione mediano di 0.185s; sono presenti inoltre numerosi _outliers_ sulla coda destra.
 
-**L'applicazione influenza il tempo di esecuzione?**
+### L'applicazione influenza il tempo di esecuzione?
 
 Si vuole indagare quali variabili influiscano il tempo di esecuzione dello script che genera la pagina.\
 La prima idea è di verificare se le diverse applicazioni presentino tempi di esecuzioni diversi.\
 L'analisi si concentrerà sulle applicazioni con il maggiorn numero di richieste, per avere dei dati maggiormente significativi.\
 Si procede quindi a plottare un grafico a dispersione generale ed un boxplot per le applicazioni maggiormente utilizzae\
 
+
 ```{r}
 ggplot(richieste)+
-  geom_point(aes(x=exec_time, y=application), alpha = 0.05,)
+  geom_point(aes(x=exec_time, y=application), alpha = 0.05)
+```
 
+```{r exec_time2}
 ggplot(richieste %>% filter (application != "Other", application != "Error", application != "UserProfile", application != "News")) +
   geom_boxplot(aes(x=exec_time), outlier.shape = NA) +
   coord_cartesian(xlim = quantile(richieste$exec_time, c(0, 0.996))) +
-  facet_wrap("application")
+    theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+    panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank()) +
+  facet_wrap("application") +
+    labs(title="Distribuzione del tempo di esecuzione degli script, per alcune applicazioni", x="Exec-time, in secondi")
 ```
 \
 Si nota una distribuzione nettamente diversa per l'applicazione OdsCom, mentre le altre analizzate hanno un comportamento sovrapponibile a quello generale.\
-Da notare che sia l'applicazione "Documenti" sia l'applicazione "OdSCom" sono aratterizzate dall'accesso al file system, partciolare che avrebbe potuto influire allo stesso modo sul tempo di esecuzione, cosa che invece non viene evidenziata dall'analisi.\
+Da notare che sia l'applicazione "Documenti" sia l'applicazione "OdSCom" sono caratterizzate dall'accesso al file system, particolare che avrebbe potuto influire sul tempo di esecuzione, cosa che invece non viene evidenziata dall'analisi.\
 L'altro fattore che potrebbe influire è il fatto che la pagina sia stata richiesta prima o dopo aver effettuato il login utente, in quanto dopo il login la generazione della pagina comporta uan maggiore complessità degli script da eseguire (in particolare in termini di numero di query sul db).\
 Procediamo quindi a caratterizzare le richieste per questo fattore.
 \
-Innanzi tutto creo un nuovo campo logged_in impostandolo a TRUE o FALSE
+Innanzi tutto creo un nuovo campo _logged_in_ impostandolo a TRUE o FALSE, in base alla presenza o meno in tabella del valore "userid".
 
 ```{r}
 richieste = richieste %>% 
@@ -605,18 +655,27 @@ richieste = richieste %>%
 ```
 
 \
-Si passa quindi a plottare un boxplot sul tempo di esecuzione, suddiviso per richieste loggate e non loggate
+Si passa quindi a plottare un boxplot sul tempo di esecuzione, suddiviso per log-in status
 
-```{r message=FALSE, warning=FALSE}
+```{r exec_time3, message=FALSE, warning=FALSE}
 rlg = richieste %>% 
   select (application, logged_in, exec_time) %>% 
   group_by(application, logged_in) %>% 
   summarize(m = median(exec_time))
 
 ggplot (richieste) +
-  geom_boxplot(aes(logged_in, exec_time), outlier.shape = NA) +
-  coord_cartesian(ylim = quantile(richieste$exec_time, c(0, 0.98)))
+  geom_boxplot(aes(exec_time, logged_in), outlier.shape = NA) +
+  coord_cartesian(xlim = quantile(richieste$exec_time, c(0, 0.98))) +
+      labs(title="Distribuzione del tempo di esecuzione degli script, per log-in status", 
+           y="Log-in status", x="Exec-time, in secondi")
 
+```
+\
+Dal grafico è evidente che il login status è determinante rispetto al tempo di esecuzione degli script.
+\
+Ad ulteriore conferma, proviamo a plottare un boxplot analogo relativamente alle applicazioni utilizzabili anche senza log-in:
+
+```{r exec_time4, message=FALSE, warning=FALSE}
 ggplot (richieste %>% filter (application!="Error", 
                               application!="News", 
                               application!="OdsCom",
@@ -624,33 +683,46 @@ ggplot (richieste %>% filter (application!="Error",
                               application!="Other") )+
   geom_boxplot(aes(logged_in, exec_time), outlier.shape = NA) +
   coord_cartesian(ylim = quantile(richieste$exec_time, c(0, 0.98))) +
-  facet_wrap("application")
+  facet_wrap("application") +
+        labs(title="Distribuzione tempo esecuzione script per alcune applicazioni, per log-in status", 
+           x="Log-in status", y="Exec-time, in secondi")
 ```
 \
 Dal boxplot risulta evidente che le richieste "logged_in" hanno un tempo di esecuzione di molte volte maggiore, anche per applicazioni il cui login non è necessario e non incide quindi sull'esecuzione dell'applicazione stessa.\
-A questo punto il fattore che influisce sul tempo di esecuzione è individuabile sulle parti di script che vengono eseguite solo ad utente loggato, come la generazione del menù personalizzato e la generazione dell'area delle notifiche.
+A questo punto il fattore che influisce sul tempo di esecuzione è giustificabile dalle parti di script che vengono eseguite solo ad utente loggato, come la generazione del menù personalizzato e la generazione dell'area delle notifiche.
 
-**L'orario influenza il tempo di esecuzione?**
+### L'orario influenza il tempo di esecuzione?
 
 Un'ultima curiosità riguarda l'influenza della fascia oraria sul tempo di esecuzione, ipotizzando che nelle fasce con il maggior numero di richieste si possa riscontrare un tempo di esecuzione maggiore.\
-Allo scopo si esamina la distribuzione del tempo di esecuzione nella fascia con maggior numero di richieste (8-9) con la fascia di fine giornata lavorativa (17-18):
+Allo scopo si esamina la distribuzione del tempo di esecuzione nella fascia di punta (8-9) con una delle fasce di fine giornata lavorativa (17-18):
 \
 
-```{r}
+```{r exec_time_fasce}
 ggplot(richieste %>% filter ((fascia_oraria==8) | (fascia_oraria==17))) +
-  geom_boxplot(aes(x=exec_time), outlier.shape = NA) +
-  coord_cartesian(xlim = quantile(richieste$exec_time, c(0.001, 0.997))) +
-  facet_wrap("fascia_oraria")
+  geom_boxplot(aes(y=exec_time), outlier.shape = NA) +
+  coord_cartesian(ylim = quantile(richieste$exec_time, c(0.001, 0.997))) +
+      theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  facet_wrap("fascia_oraria") +
+  
+          labs(title="Distribuzione tempo esecuzione script in particolari fasce orarie", 
+           y="Exec-time, in secondi")
 ```
 \
-Non si riscontrano differenze significative, pertanto si conclude che nelle fasce di punta non ci sia un degrado di prestazioni dei server interessati.
+Non solo non si riscontrano differenze significative, ma la distrubuzione della fascia 17-18 riporta addirittura valori più mediani ed interquartili elevati, anche se non in modo particolarmente significativo.\
+Pertanto si conclude che nelle fasce di punta non ci sia un tempo di esecuzione significativamente differente dalle altre fasce, e pertanto l'infratstrtuttura appare al momento adeguatamente dimensionata al carico di lavoro.
 
 
-**(SUB) Quali sono le parole più ricercate in rubrica?**\
+## Analisi dell'utilizzo della rubrica
 
-Con alcune semplici tecniche di text-mining si isolano le chiavi di ricerca 
+### Quali sono i termini più ricercati?
 
-```{r}
+Come ultima curiosità si procede ad un'analisi sui termini utilizzati nella ricerca sulla rubrica interna.\
+Con alcune semplici tecniche di text-mining si isolano le chiavi di ricerca, si ottimizza il dataset predisponendolo alla generazione della _Term Document Matrix_ e al plot di un _wordcloud_ 
+
+```{r wordcloud, message=FALSE, warning=FALSE}
+#isolo la colonna req_uri per le richieste da applicazione "Rubrica"
 chiavi = richieste %>% 
   filter(application=="Rubrica") %>% 
   select (req_uri)
@@ -682,9 +754,4 @@ wordcloud(words = d$word, freq = d$freq, min.freq = 10,
           colors=brewer.pal(8, "Dark2"))
 
 ```
-
-
-
-
-
-
+Il **wordcloud** evidenzia che viene utilizzata con netta prevalenza la modalità di ricerca "per nome persone", mentre le ricerche "per ufficio" e "per numero" sono usate sporadicamente.
