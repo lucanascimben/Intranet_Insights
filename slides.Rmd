@@ -22,7 +22,7 @@ L'obiettivo del progetto è di analizzare i dati relativi alla navigazione delle
 
 **Contesto**
 
-- Nel 2018 gli Enti "X" di Pordenone e Udine accorpano e viene costituito un unico Ente "X" con due sedi nei rispettivi capoluoghi (Pordenone e Udine), con conseguente necessità di integrare processi e _asset_, anche tecnologici.
+- Nel 2018 gli Enti "X" di Pordenone e Udine si accorpano e viene costituito un unico Ente "X" con due sedi nei rispettivi capoluoghi (Pordenone e Udine), con conseguente necessità di integrare processi e _asset_, anche tecnologici.
 - Tra gli _asset_ tecnologici oggetto di integrazione ci sono le rispettive piattaforme per gestire la comunicazione interna e la digitalizzazione di alcuni processi:
 
   + Pordenone -> piattaforma _web-based_ (Intranet)
@@ -30,9 +30,9 @@ L'obiettivo del progetto è di analizzare i dati relativi alla navigazione delle
 
 ## Introduzione (2)
 
-L'Ente opta per dismettere le piattaforme client server ed effetuare il porting delle applicazioni sulla piattaforma web-based.
+L'Ente opta per avviare in processo di dismissione delle piattaforme *client-server based* in uso presso la sede di Udine effettuando il *porting*  delle applicazioni sulla piattaforma web-based in uso presso la sede di Pordenone.
 
-Il primo step di questo processo ha comportato un _refactoring_ della Intranet.
+Il primo step di questo processo ha comportato un _refactoring_ della vecchia intranet.
 
 <img src="img/IntranetOld.png" width="400">
 <img src="img/IntranetNew.png" width="400">
@@ -59,6 +59,9 @@ Dal DB viene anche mutuata parte della tabella *utenti*:
 - *id_sede* - Sede di assegnazione dell'utente
 - *abilitato* - Booleano per lo status dell'utente
 
+Al momento della preparazione di questa slide la tabella conta oltre 234.000 righe.\
+Dopo opportune considerazioni, il dataset esaminato viene ridotto a circa 210.000 righe.
+
 ## Obiettivi dell'analisi
 
 - **Analisi temporale e geografica**
@@ -81,6 +84,7 @@ Dal DB viene anche mutuata parte della tabella *utenti*:
   + _Quali sono i termini più ricercati?_
 
 **NB: Periodo di riferimento dal 01.05.2021 al 31.12.2022**
+
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 #Package RODBC
 library(RODBC)
@@ -172,7 +176,7 @@ ggplot(glob, aes(x=sede, y=perc, fill=distribuzione)) +
     labs(title="Distribuzione utenti e richieste, per sede", x="Sede", y = "distribuzione")
 ```
 \
-Dalla sede di Udine vengono generate relativamente poche richieste rispetto al numero degli utenti.<br>Questo conferma che la sede di Udine è ancora in una fase iniziale di adozione dello strumento.
+Dalla sede di Udine vengono generate relativamente poche richieste rispetto al numero degli utenti.<br>Questo conferma che la sede di Udine è ancora in una fase iniziale di adozione dello strumento; ritengo che con l'avanzare del *porting* delle applicazioni.
 
 ```{r message=FALSE, warning=FALSE}
 mensili = richieste %>%
@@ -190,10 +194,12 @@ ggplot (mensili, aes(sede, n, color=sede)) +
   theme(legend.position='none') +
     theme(panel.grid.major.x = element_blank(),
         panel.grid.minor.x = element_blank()) +
-  labs(title="Disribuzione numero mensile di pagine richieste, per sede", x="Sede", y = "# richieste")
+  labs(title="Distribuzione numero mensile di pagine richieste, per sede", x="Sede", y = "# richieste")
 ```
 \
-L'andamento mensile delle richieste di Udine non ha avuto particolari picchi positivi o negativi.<br>Le richieste dalla sede di Pordenone presentano invece una variabiltà maggiore.
+PN ~ 7.300 richieste/mese, UD ~ 3.250 richieste/mese
+L'andamento mensile delle richieste di Udine non ha avuto particolari picchi positivi o negativi.\
+Le richieste dalla sede di Pordenone presentano invece una variabiltà maggiore.
 
 ## Analisi temporale e geografica (3)
 
@@ -577,5 +583,28 @@ wordcloud(words = d$word, freq = d$freq, min.freq = 10,
 ```
 \
 Il **wordcloud** evidenzia che viene utilizzata con netta prevalenza la modalità di ricerca "per nome persone", mentre le ricerche "per ufficio" e "per numero" sono usate sporadicamente.
+
+## Conclusioni
+
+- **Analisi temporale e geografica**
+  + La maggior parte del traffico è ancora generata dalla sede di Pordenone...
+  + ... con il *porting* delle app crescerà il traffico anche dalla sede di Udine
+  + Vi è un picco di utilizzo nella fascia oraria 8-10, e un maggior utilizzo in fascia antimeridiana.
+  
+- **Analisi del tipo di browser utilizzato**
+  + Prevale l'uso di Google Chrome
+  + Non viene più usato MS IE 10/11
+  
+- **Analisi delle applicazioni (moduli della intranet) utilizzate**
+  + La Rubrica e l'app Ordini di Servizio sono le più utilizzate...
+  + ... anche se la Rubrica ha potenziale di crescita perchè poco sfruttata dalla sede di Udine
+  
+- **Performance del sistema**
+  + Le pagine vengono generate in un tempo sempre accettabile...
+  + ... anche in caso di accesso al *file system*...
+  + ... e non ci sono situazioni che fanno degradare le *performance* del sistema
+
+- **Analisi dell'utilizzo della rubrica**
+  + Chi utilizza la rubrica predilige la ricerca per nome / cognome
 
 ## ***Grazie per l'attenzione!***
